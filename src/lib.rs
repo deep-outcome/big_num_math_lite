@@ -1,7 +1,9 @@
 #![no_std]
 
 const MAX_PLACES: usize = 815;
-const MAX_DEC_PLACES: usize = 5;
+const MAX_DEC_PLACES: usize = 39;
+
+type decimals = ([u8; MAX_DEC_PLACES], usize);
 
 // xₙ₊₁ = ½(xₙ+S÷xₙ)
 fn herons_sqrt(num: u16) -> u16 {
@@ -42,8 +44,34 @@ fn prime_ck(num: u16) -> bool {
     true
 }
 
+trait AsSlice {
+    fn as_slice(&self) -> &[u8];
+}
+
+trait AsSliceMut {
+    fn as_slice_mut(&mut self) -> &mut [u8];
+}
+
+impl AsSlice for decimals {
+    fn as_slice(&self) -> &[u8] {
+        &self.0[..self.1]
+    }
+}
+
+impl AsSlice for ([u8; MAX_PLACES], usize) {
+    fn as_slice(&self) -> &[u8] {
+        &self.0[..self.1]
+    }
+}
+
+impl AsSliceMut for decimals {
+    fn as_slice_mut(&mut self) -> &mut [u8] {
+        &mut self.0[..self.1]
+    }
+}
+
 /// converts number to decimal places
-fn to_decimals(mut num: u16) -> ([u8; MAX_DEC_PLACES], usize) {
+fn to_decimals(mut num: u128) -> decimals {
     let mut decimals = [0; MAX_DEC_PLACES];
     let mut ix = 0;
     loop {
@@ -61,7 +89,7 @@ fn to_decimals(mut num: u16) -> ([u8; MAX_DEC_PLACES], usize) {
 }
 
 /// converts decimal places to number
-fn from_decimals(decimals: &[u8]) -> u16 {
+fn from_decimals(decimals: &[u8]) -> u128 {
     #[cfg(test)]
     assert!(decimals.len() > 0);
 
@@ -74,30 +102,74 @@ fn from_decimals(decimals: &[u8]) -> u16 {
             continue;
         }
 
-        num += place as u16 * 10u16.pow(ix as u32);
+        num += place as u128 * 10u128.pow(ix as u32);
     }
 
     num
 }
 
-fn rem(dividend: &[u8], divisor: &[u8]) -> u16 {
-    #[cfg(test)]
-    assert!(dividend.len() > 0);
-    #[cfg(test)]
-    assert!(divisor.len() > 0);
+// in order to avoid excessive looping rem computation can be speed up
+// by simple substracting 10 multiples of divisor 1ˢᵗ
+fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
+    // widen divisor
+    let mut wdsor = [0; MAX_PLACES];
 
-    #[cfg(test)]
-    assert!(from_decimals(divisor) != 0);
+    let mut end_len = dividend.len();
+    let sor_len = divisor.len();
 
-    // mayhap population beforehand is more effecient
-    let mut rem_populated = false;
+    let sor_hg_ix = sor_len - 1;
 
-    let dividend_len = dividend.len();
-    let divisor_len = divisor.len();
+    // can run in vain when `end_len` == `sor_len` +1 and
+    // divisor cannot be broaden up
+    while end_len > sor_len {
+        let mut wr_ix = end_len - 1;
 
-    let mut rem = [0; MAX_PLACES];
-    let rem_ptr = rem.as_ptr();
-    let mut dividend_ptr = dividend.as_ptr();
+        let mut l_ix = wr_ix;
+        let mut r_ix = sor_hg_ix;
+
+        loop {
+            // check whether divisor can be broaded up to
+            // dividend highest place
+            if dividend[l_ix] < divisor[r_ix] {
+                wr_ix -= 1;
+                break;
+            }
+
+            if r_ix == 0 {
+                break;
+            }
+
+            l_ix -= 1;
+            r_ix -= 1;
+        }
+
+        let wdsor_len = wr_ix + 1;
+        let mut sor_ix = sor_hg_ix;
+
+        loop {
+            wdsor[wr_ix] = divisor[sor_ix];
+
+            if sor_ix == 0 {
+                break;
+            }
+
+            sor_ix -= 1;
+            wr_ix -= 1;
+        }
+
+        //println!("{:?}", wdsor);
+        //return 3;
+        end_len = rem_crux(dividend, &wdsor, end_len, wdsor_len);
+    }
+
+    // when dividend is already rem this runs in vain
+    if end_len == sor_len {
+        end_len = rem_crux(dividend, divisor, end_len, sor_len);
+    }
+
+    from_decimals(&dividend[..end_len])
+}
+
 
     let mut takeover;
     let mut ix;
@@ -329,27 +401,30 @@ mod tests_of_units {
     }
 
     mod to_decimals {
-        use crate::to_decimals;
+        use crate::{to_decimals, AsSlice, MAX_DEC_PLACES};
 
         #[test]
         fn basic_test() {
             let decimals = to_decimals(1);
-            assert_eq!([1, 0, 0, 0, 0], decimals.0);
             assert_eq!(1, decimals.1);
+            let mut proof = [0; MAX_DEC_PLACES];
+            proof[0] = 1;
+
+            assert_eq!(&proof, &decimals.0);
         }
 
         #[test]
         fn zero_test() {
             let decimals = to_decimals(0);
-            assert_eq!([0, 0, 0, 0, 0], decimals.0);
             assert_eq!(1, decimals.1);
+            assert_eq!([0; MAX_DEC_PLACES], decimals.0);
         }
 
         #[test]
         fn test_65535() {
             let decimals = to_decimals(65535);
-            assert_eq!([5, 3, 5, 5, 6], decimals.0);
             assert_eq!(5, decimals.1);
+            assert_eq!([5, 3, 5, 5, 6], decimals.as_slice());
         }
     }
 
@@ -373,12 +448,122 @@ mod tests_of_units {
 
         #[test]
         fn test_65535() {
-            assert_eq!(u16::MAX, from_decimals(&[5, 3, 5, 5, 6]));
+            assert_eq!(u16::MAX as u128, from_decimals(&[5, 3, 5, 5, 6]));
         }
     }
 
     mod rem {
-        use crate::{rem, to_decimals};
+        use crate::{from_decimals, loop_counter, rem, to_decimals, AsSlice, AsSliceMut};
+
+        #[test]
+        fn basic_test() {
+            let mut dividend = to_decimals(65000);
+            let divisor = to_decimals(65);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(0, rem);
+
+            // assert_eq!(2, unsafe { loop_counter });
+        }
+
+        #[test]
+        fn advanced_test1() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(277);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(163, rem);
+
+            // assert_eq!(15, unsafe { loop_counter });
+            // 65535 -2× 27700 ⇒ 2 +1
+            // 10135 -3×  2770 ⇒ 3 +1
+            // 1825  -6×   277 ⇒ 6 +1
+            // rem 163 ⇒ Σ 14 +1 for reentry
+        }
+
+        #[test]
+        fn advanced_test2() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(27);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(6, rem);
+
+            // assert_eq!(19, unsafe { loop_counter });
+            // 65535 -2× 27000 ⇒ 2 +1
+            // 11535 -4×  2700 ⇒ 4 +1
+            // 735   -2×   270 ⇒ 2 +1
+            // 195   -7×    27 ⇒ 7 +1
+            // rem 6 ⇒ Σ 19, no reentry
+        }
+
+        #[test]
+        fn advanced_test3() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(69);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(54, rem);
+
+            //assert_eq!(26, unsafe { loop_counter });
+            // 65535 -9× 6900 ⇒ 9 +1
+            // 3435  -4×  690 ⇒ 4 +1
+            // 675   -9×   69 ⇒ 9 +1
+            // rem 54 ⇒ Σ 25 +1 for reentry
+        }
+
+        #[test]
+        fn advanced_test4() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(65536);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(65535, rem);
+            // assert_eq!(1, unsafe { loop_counter });
+        }
+
+        #[test]
+        fn advanced_test5() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(65535);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(0, rem);
+            //assert_eq!(2, unsafe { loop_counter });
+        }
+
+        #[test]
+        fn advanced_test6() {
+            let mut dividend = to_decimals(60_000);
+            let divisor = to_decimals(6001); // cannot broaden up
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(5991, rem);
+            // assert_eq!(11, unsafe { loop_counter });
+            // 65535 -9× 6001 ⇒ 9 +1
+            // rem 5991       ⇒ Σ 10 +1 for reentry
+        }
+
+        #[test]
+        fn advanced_test7() {
+            let mut dividend = to_decimals(123);
+            let divisor = to_decimals(1234);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(123, rem);
+            // assert_eq!(0, unsafe { loop_counter });
+        }
+
+        #[test]
+        fn load_test() {
+            let mut dividend = to_decimals(u128::MAX);
+            let divisor = to_decimals(249);
+
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(216, rem);
+        }
+    }
+
 
         #[test]
         fn basic_test() {
@@ -428,26 +613,26 @@ mod tests_of_units {
     }
 
     mod pow {
-        use crate::{pow, to_decimals};
+        use crate::{pow, to_decimals, AsSlice};
 
         #[test]
         fn basic_test() {
             let pow = pow(&[2], 3);
 
             assert_eq!(1, pow.1);
-            assert_eq!(&[8], &pow.0[..pow.1]);
+            assert_eq!(&[8], pow.as_slice());
         }
 
         #[test]
         fn advanced_test() {
-            let decimals = to_decimals(u16::MAX);
+            let decimals = to_decimals(u16::MAX as u128);
             let proof = [5, 2, 2, 6, 3, 8, 4, 9, 2, 4];
             let proof_len = proof.len();
 
-            let pow = pow(&decimals.0, 2);
+            let pow = pow(&decimals.as_slice(), 2);
 
             assert_eq!(proof_len, pow.1);
-            assert_eq!(proof, &pow.0[0..pow.1]);
+            assert_eq!(proof, pow.as_slice());
         }
 
         #[test]
@@ -462,14 +647,14 @@ mod tests_of_units {
             let pow = pow(&decimals.0[0..decimals.1], 17);
 
             assert_eq!(proof_len, pow.1);
-            assert_eq!(proof, &pow.0[0..pow.1]);
+            assert_eq!(proof, pow.as_slice());
         }
 
         #[test]
         fn zero_power_test() {
             let pow = pow(&[0], 0);
             assert_eq!(1, pow.1);
-            assert_eq!(&[1], &pow.0[..pow.1]);
+            assert_eq!(&[1], pow.as_slice());
         }
 
         #[test]
@@ -479,7 +664,7 @@ mod tests_of_units {
             let pow = pow(&decimals, 1);
 
             assert_eq!(4, pow.1);
-            assert_eq!(decimals, &pow.0[..pow.1]);
+            assert_eq!(decimals, pow.as_slice());
         }
 
         #[test]
@@ -487,7 +672,7 @@ mod tests_of_units {
             let pow = pow(&[0], 255);
 
             assert_eq!(1, pow.1);
-            assert_eq!(&[0], &pow.0[..pow.1]);
+            assert_eq!(&[0], pow.as_slice());
         }
 
         #[test]
@@ -495,7 +680,7 @@ mod tests_of_units {
             let pow = pow(&[1], 255);
 
             assert_eq!(1, pow.1);
-            assert_eq!(&[1], &pow.0[..pow.1]);
+            assert_eq!(&[1], pow.as_slice());
         }
     }
 
