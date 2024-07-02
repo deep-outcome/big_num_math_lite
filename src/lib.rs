@@ -1,12 +1,13 @@
-#![no_std]
+//#![no_std]
 
 const MAX_PLACES: usize = 815;
 const MAX_DEC_PLACES: usize = 39;
 
+#[allow(non_camel_case_types)]
 type decimals = ([u8; MAX_DEC_PLACES], usize);
 
 // xₙ₊₁ = ½(xₙ+S÷xₙ)
-fn herons_sqrt(num: u16) -> u16 {
+pub fn herons_sqrt(num: u16) -> u16 {
     if num == 1 || num == 0 {
         return num;
     }
@@ -28,7 +29,7 @@ fn herons_sqrt(num: u16) -> u16 {
 
 // 1 < a ≤ b < num, num = a×b = √num×√num
 //  ⇒ a=b=√num ∨ a < b ⇒ a < √num ∧ b > √num
-fn prime_ck(num: u16) -> bool {
+pub fn prime_ck(num: u16) -> bool {
     if num < 2 {
         return false;
     }
@@ -44,11 +45,11 @@ fn prime_ck(num: u16) -> bool {
     true
 }
 
-trait AsSlice {
+pub trait AsSlice {
     fn as_slice(&self) -> &[u8];
 }
 
-trait AsSliceMut {
+pub trait AsSliceMut {
     fn as_slice_mut(&mut self) -> &mut [u8];
 }
 
@@ -71,7 +72,7 @@ impl AsSliceMut for decimals {
 }
 
 /// converts number to decimal places
-fn to_decimals(mut num: u128) -> decimals {
+pub fn to_decimals(mut num: u128) -> decimals {
     let mut decimals = [0; MAX_DEC_PLACES];
     let mut ix = 0;
     loop {
@@ -89,7 +90,7 @@ fn to_decimals(mut num: u128) -> decimals {
 }
 
 /// converts decimal places to number
-fn from_decimals(decimals: &[u8]) -> u128 {
+pub fn from_decimals(decimals: &[u8]) -> u128 {
     #[cfg(test)]
     assert!(decimals.len() > 0);
 
@@ -110,7 +111,7 @@ fn from_decimals(decimals: &[u8]) -> u128 {
 
 // in order to avoid excessive looping rem computation can be speed up
 // by simple substracting 10 multiples of divisor 1ˢᵗ
-fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
+pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
     // widen divisor
     let mut wdsor = [0; MAX_PLACES];
 
@@ -128,13 +129,22 @@ fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
         let mut r_ix = sor_hg_ix;
 
         loop {
+                        
+            let end_num = dividend[l_ix];
+            let sor_num = divisor[r_ix];
+            
             // check whether divisor can be broaded up to
             // dividend highest place
-            if dividend[l_ix] < divisor[r_ix] {
+            if end_num < sor_num  {
                 wr_ix -= 1;
+                break;
+            } else if end_num > sor_num {
                 break;
             }
 
+            println!("{}", end_num);
+            println!("{}", sor_num);
+            
             if r_ix == 0 {
                 break;
             }
@@ -157,12 +167,10 @@ fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
             wr_ix -= 1;
         }
 
-        //println!("{:?}", wdsor);
-        //return 3;
-        end_len = rem_crux(dividend, &wdsor, end_len, wdsor_len);
+        end_len = rem_crux(dividend, &wdsor, end_len, wdsor_len);        
     }
 
-    // when dividend is already rem this runs in vain
+    // when dividend is already rem this runs "in vain"
     if end_len == sor_len {
         end_len = rem_crux(dividend, divisor, end_len, sor_len);
     }
@@ -170,26 +178,31 @@ fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
     from_decimals(&dividend[..end_len])
 }
 
-
+#[cfg(test)]
+static mut LOOP_COUNTER: usize = 0;
+fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize {
+    
     let mut takeover;
     let mut ix;
+
+    println!("\ne {:?}", end);
 
     loop {
         takeover = 0;
         ix = 0;
 
-        while ix < dividend_len {
-            let sor_num = if ix < divisor_len {
-                divisor[ix]
-            } else if ix >= divisor_len && takeover == 0 && rem_populated {
+        while ix < end_len {
+            let sor_num = if ix < sor_len {
+                sor[ix]
+            } else if ix >= sor_len && takeover == 0 {
                 break;
             } else {
                 0
             };
 
-            let mut end_num = unsafe { dividend_ptr.offset(ix as isize).read() };
-
+            let mut end_num = end[ix];
             let total = sor_num + takeover;
+
             takeover = if end_num < total {
                 end_num += 10;
                 1
@@ -197,36 +210,47 @@ fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
                 0
             };
 
-            rem[ix] = end_num - total;
+            end[ix] = end_num - total;
             ix += 1;
         }
 
+        println!("{:?}", end);
+
+        #[cfg(test)]
+        unsafe {
+            LOOP_COUNTER += 1;
+        }
+
+        // add `|| ix < sor_len` to support all longer divisors, see longer_divisor_test1
         if takeover == 1 {
+            
             ix = 0;
             takeover = 0;
-            while ix < divisor_len {
-                let correction = rem[ix] + divisor[ix];
-                rem[ix] = ones(correction, &mut takeover);
+            
+            let mut not_len = 0;
+            
+            while ix < sor_len && ix < end_len {
+                let correction = end[ix] + sor[ix];                
+                
+                let one = ones(correction, &mut takeover);
+                end[ix] = one;
+                
+                if one == 0 {
+                    not_len +=1;
+                } else {
+                    not_len =0;
+                }
+                
                 ix += 1;
             }
-
-            while ix < MAX_DEC_PLACES {
-                rem[ix] = 0;
-                ix += 1;
-            }
-            break;
-        }
-
-        if !rem_populated {
-            dividend_ptr = rem_ptr;
-            rem_populated = true;
+            
+            println!("x {:?}\n", end);
+            return if not_len == ix { 1 } else { ix - not_len };
         }
     }
-
-    from_decimals(&rem[0..MAX_DEC_PLACES])
 }
 
-fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
+pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
     let mut mcand = [0; MAX_PLACES];
     if pow == 0 {
         mcand[0] = 1;
@@ -453,17 +477,19 @@ mod tests_of_units {
     }
 
     mod rem {
-        use crate::{from_decimals, loop_counter, rem, to_decimals, AsSlice, AsSliceMut};
+        use crate::{ rem, to_decimals, AsSlice, AsSliceMut
+             ,LOOP_COUNTER
+        };
 
         #[test]
         fn basic_test() {
             let mut dividend = to_decimals(65000);
-            let divisor = to_decimals(65);
+            let divisor = to_decimals(5);
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(0, rem);
 
-            // assert_eq!(2, unsafe { loop_counter });
+            // assert_eq!(7, unsafe { LOOP_COUNTER });
         }
 
         #[test]
@@ -474,7 +500,7 @@ mod tests_of_units {
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(163, rem);
 
-            // assert_eq!(15, unsafe { loop_counter });
+            // assert_eq!(15, unsafe { LOOP_COUNTER });
             // 65535 -2× 27700 ⇒ 2 +1
             // 10135 -3×  2770 ⇒ 3 +1
             // 1825  -6×   277 ⇒ 6 +1
@@ -489,7 +515,7 @@ mod tests_of_units {
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(6, rem);
 
-            // assert_eq!(19, unsafe { loop_counter });
+             // assert_eq!(19, unsafe { LOOP_COUNTER });
             // 65535 -2× 27000 ⇒ 2 +1
             // 11535 -4×  2700 ⇒ 4 +1
             // 735   -2×   270 ⇒ 2 +1
@@ -505,7 +531,7 @@ mod tests_of_units {
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(54, rem);
 
-            //assert_eq!(26, unsafe { loop_counter });
+            // assert_eq!(26, unsafe { LOOP_COUNTER });
             // 65535 -9× 6900 ⇒ 9 +1
             // 3435  -4×  690 ⇒ 4 +1
             // 675   -9×   69 ⇒ 9 +1
@@ -519,7 +545,7 @@ mod tests_of_units {
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(65535, rem);
-            // assert_eq!(1, unsafe { loop_counter });
+            // assert_eq!(1, unsafe { LOOP_COUNTER });
         }
 
         #[test]
@@ -529,7 +555,7 @@ mod tests_of_units {
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(0, rem);
-            //assert_eq!(2, unsafe { loop_counter });
+            // assert_eq!(2, unsafe { LOOP_COUNTER });
         }
 
         #[test]
@@ -539,7 +565,7 @@ mod tests_of_units {
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(5991, rem);
-            // assert_eq!(11, unsafe { loop_counter });
+            // assert_eq!(11, unsafe { LOOP_COUNTER });
             // 65535 -9× 6001 ⇒ 9 +1
             // rem 5991       ⇒ Σ 10 +1 for reentry
         }
@@ -551,7 +577,31 @@ mod tests_of_units {
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(123, rem);
-            // assert_eq!(0, unsafe { loop_counter });
+            // assert_eq!(0, unsafe { LOOP_COUNTER });
+        }
+               
+        #[test]
+        fn advanced_test8() {
+            let mut dividend = to_decimals(65535);
+            let divisor = to_decimals(6553);
+            
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(5, rem);
+            // assert_eq!(2, unsafe { LOOP_COUNTER });
+            // 65535 -1× 65530 ⇒ 1 +1
+            // rem 5           ⇒ Σ 2, no reentry
+        }
+        
+        #[test]
+        fn advanced_test9() {
+            let mut dividend = to_decimals(65000);
+            let divisor = to_decimals(65);
+            
+            let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
+            assert_eq!(0, rem);
+            // assert_eq!(2, unsafe { LOOP_COUNTER });
+            // 65000 -1× 65000 ⇒ 1 +1
+            // rem 0           ⇒ Σ 2, no reentry
         }
 
         #[test]
@@ -560,55 +610,77 @@ mod tests_of_units {
             let divisor = to_decimals(249);
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
-            assert_eq!(216, rem);
+            assert_eq!(216, rem);            
         }
     }
 
+    mod rem_crux {
 
-        #[test]
-        fn basic_test() {
-            let dividend = to_decimals(4);
-            let divisor = to_decimals(4);
+        use crate::{decimals, from_decimals, rem_crux, to_decimals, AsSlice,  MAX_DEC_PLACES };
 
-            let rem = rem(&dividend.0[..dividend.1], &divisor.0[..dividend.1]);
-            assert_eq!(0, rem);
+        fn rem_crux_aux(dividend: &mut decimals, divisor: &decimals) -> u128 {
+            let end = &mut dividend.0;
+            let end_len = rem_crux(end, &divisor.0, dividend.1, divisor.1);
+            from_decimals(&end[..end_len])
         }
 
         #[test]
+        fn basic_test() {
+            let mut dividend = to_decimals(4444);
+            let divisor = to_decimals(44);
+
+            let end_len = rem_crux(&mut dividend.0, &divisor.0, 4, 2);
+            assert_eq!(1, end_len);
+            let mut proof = [0; MAX_DEC_PLACES];
+            proof[2..=3].fill_with(||9);
+            assert_eq!(&proof, &dividend.0);
+        }
+        
+        #[test]
         fn advanced_test() {
-            let dividend = to_decimals(171);
+            let mut dividend = to_decimals(171);
             let divisor = to_decimals(22);
 
-            let rem = rem(&dividend.0[..dividend.1], &divisor.0[..dividend.1]);
+            let rem = rem_crux_aux(&mut dividend, &divisor);
             assert_eq!(17, rem);
         }
 
         #[test]
-        fn minuend_copy_test() {
-            let dividend = to_decimals(15);
-            let divisor = to_decimals(4);
-
-            let rem = rem(&dividend.0[..dividend.1], &divisor.0[..dividend.1]);
-            // if rem was no populated in first run it would be `1`
-            assert_eq!(3, rem);
-        }
-
-        #[test]
         fn takeover_test() {
-            let dividend = to_decimals(909);
+            let mut dividend = to_decimals(909);
             let divisor = to_decimals(9);
 
-            let rem = rem(&dividend.0[..dividend.1], &divisor.0[..dividend.1]);
+            let rem = rem_crux_aux(&mut dividend, &divisor);
             assert_eq!(0, rem);
         }
-
+        
         #[test]
-        fn overrun_clearing_test() {
-            let dividend = to_decimals(65002);
-            let divisor = to_decimals(65);
-
-            let rem = rem(&dividend.0[..dividend.1], &divisor.0[..dividend.1]);
-            assert_eq!(2, rem);
+        fn longer_divisor_test1() {
+            let mut dividend = to_decimals(69);
+            let divisor = to_decimals(244);
+            
+            let end_len = rem_crux(&mut dividend.0, &divisor.0, 2, 3);
+            assert_eq!(2, end_len);
+            assert_eq!(&[5, 2], dividend.as_slice());
+            // to get correct result, `69`, `rem_crux` have to be updated
+        }
+        
+        #[test]
+        fn longer_divisor_test2() {
+            let mut dividend = to_decimals(69);
+            let divisor = to_decimals(270);
+            
+            let rem = rem_crux_aux(&mut dividend, &divisor);
+            assert_eq!(69, rem);
+        }
+        
+        #[test]
+        fn longer_divisor_test3() {
+            let mut dividend = to_decimals(69);
+            let divisor = to_decimals(269);            
+            
+            let rem = rem_crux_aux(&mut dividend, &divisor);
+            assert_eq!(0, rem);
         }
     }
 
