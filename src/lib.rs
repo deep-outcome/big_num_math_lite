@@ -1,4 +1,4 @@
-//#![no_std]
+#![no_std]
 
 const MAX_PLACES: usize = 815;
 const MAX_DEC_PLACES: usize = 39;
@@ -142,9 +142,6 @@ pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
                 break;
             }
 
-            println!("{}", end_num);
-            println!("{}", sor_num);
-            
             if r_ix == 0 {
                 break;
             }
@@ -185,8 +182,6 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
     let mut takeover;
     let mut ix;
 
-    println!("\ne {:?}", end);
-
     loop {
         takeover = 0;
         ix = 0;
@@ -194,7 +189,7 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
         while ix < end_len {
             let sor_num = if ix < sor_len {
                 sor[ix]
-            } else if ix >= sor_len && takeover == 0 {
+            } else if takeover == 0 {
                 break;
             } else {
                 0
@@ -213,8 +208,6 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
             end[ix] = end_num - total;
             ix += 1;
         }
-
-        println!("{:?}", end);
 
         #[cfg(test)]
         unsafe {
@@ -244,7 +237,6 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
                 ix += 1;
             }
             
-            println!("x {:?}\n", end);
             return if not_len == ix { 1 } else { ix - not_len };
         }
     }
