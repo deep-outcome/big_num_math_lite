@@ -129,13 +129,12 @@ pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
         let mut r_ix = sor_hg_ix;
 
         loop {
-                        
             let end_num = dividend[l_ix];
             let sor_num = divisor[r_ix];
-            
+
             // check whether divisor can be broaded up to
             // dividend highest place
-            if end_num < sor_num  {
+            if end_num < sor_num {
                 wr_ix -= 1;
                 break;
             } else if end_num > sor_num {
@@ -178,7 +177,6 @@ pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
 #[cfg(test)]
 static mut LOOP_COUNTER: usize = 0;
 fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize {
-    
     let mut takeover;
     let mut ix;
 
@@ -216,10 +214,9 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
 
         // add `|| ix < sor_len` to support all longer divisors, see longer_divisor_test1
         if takeover == 1 {
-            
             ix = 0;
             takeover = 0;
-            
+
             let mut not_len = 0;
             
             while ix < sor_len && ix < end_len {
@@ -227,13 +224,13 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
                 
                 let one = ones(correction, &mut takeover);
                 end[ix] = one;
-                
+
                 if one == 0 {
-                    not_len +=1;
+                    not_len += 1;
                 } else {
-                    not_len =0;
+                    not_len = 0;
                 }
-                
+
                 ix += 1;
             }
             
@@ -263,8 +260,8 @@ pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
     let mut limit = (pow - 1) as usize;
     let mut mcand_len = base_len;
 
+    let mut sum_len = 0;
     loop {
-        let mut sum_len = 0;
 
         for base_off in 0..base_len {
             sum_len = muladd(&mcand[0..mcand_len], base[base_off], &mut sum, base_off);
@@ -469,9 +466,7 @@ mod tests_of_units {
     }
 
     mod rem {
-        use crate::{ rem, to_decimals, AsSlice, AsSliceMut
-             ,LOOP_COUNTER
-        };
+        use crate::{rem, to_decimals, AsSlice, AsSliceMut, LOOP_COUNTER};
 
         #[test]
         fn basic_test() {
@@ -608,7 +603,7 @@ mod tests_of_units {
 
     mod rem_crux {
 
-        use crate::{decimals, from_decimals, rem_crux, to_decimals, AsSlice,  MAX_DEC_PLACES };
+        use crate::{decimals, from_decimals, rem_crux, to_decimals, AsSlice, MAX_DEC_PLACES};
 
         fn rem_crux_aux(dividend: &mut decimals, divisor: &decimals) -> u128 {
             let end = &mut dividend.0;
@@ -624,10 +619,10 @@ mod tests_of_units {
             let end_len = rem_crux(&mut dividend.0, &divisor.0, 4, 2);
             assert_eq!(1, end_len);
             let mut proof = [0; MAX_DEC_PLACES];
-            proof[2..=3].fill_with(||9);
+            proof[2..=3].fill_with(|| 9);
             assert_eq!(&proof, &dividend.0);
         }
-        
+
         #[test]
         fn advanced_test() {
             let mut dividend = to_decimals(171);
