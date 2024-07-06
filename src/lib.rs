@@ -276,9 +276,9 @@ pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
             mcand = sum;
             break;
         }
-
-        mcand.clone_from(&sum);
+        
         for ix in 0..sum_len {
+            mcand[ix] = sum[ix];
             sum[ix] = 0;
         }
     }
@@ -677,6 +677,7 @@ mod tests_of_units {
     }
 
     mod pow {
+        
         use crate::{pow, to_decimals, AsSlice};
 
         #[test]
@@ -708,10 +709,24 @@ mod tests_of_units {
             ];
             let proof_len = proof.len();
 
-            let pow = pow(&decimals.0[0..decimals.1], 17);
+            let pow = pow(decimals.as_slice(), 17);
 
             assert_eq!(proof_len, pow.1);
             assert_eq!(proof, pow.as_slice());
+        }
+        
+        #[test]
+        fn advanced_test3() {
+            let decimals = to_decimals(1559);
+            let proof = [1,4,9,8,8,5,4,1,4,4,5,9,2,0,4,5,8,1,8];
+            
+            let pow = pow(&decimals.as_slice(), 255);
+            
+            assert_eq!(815, pow.1);
+            let pow = pow.0;
+            for ix in 0..proof.len() {
+                assert_eq!(proof[ix], pow[814-ix]);                
+            }
         }
 
         #[test]
