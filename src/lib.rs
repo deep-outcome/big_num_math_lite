@@ -4,7 +4,9 @@ const MAX_PLACES: usize = 815;
 const MAX_DEC_PLACES: usize = 39;
 
 #[allow(non_camel_case_types)]
-type decimals = ([u8; MAX_DEC_PLACES], usize);
+type decimalsU128 = ([u8; MAX_DEC_PLACES], usize);
+#[allow(non_camel_case_types)]
+type decimalsMax = ([u8; MAX_PLACES], usize);
 
 // xₙ₊₁ = ½(xₙ+S÷xₙ)
 pub fn herons_sqrt(num: u16) -> u16 {
@@ -53,7 +55,7 @@ pub trait AsSliceMut {
     fn as_slice_mut(&mut self) -> &mut [u8];
 }
 
-impl AsSlice for decimals {
+impl AsSlice for decimalsU128 {
     fn as_slice(&self) -> &[u8] {
         &self.0[..self.1]
     }
@@ -65,14 +67,14 @@ impl AsSlice for ([u8; MAX_PLACES], usize) {
     }
 }
 
-impl AsSliceMut for decimals {
+impl AsSliceMut for decimalsU128 {
     fn as_slice_mut(&mut self) -> &mut [u8] {
         &mut self.0[..self.1]
     }
 }
 
 /// converts number to decimal places
-pub fn to_decimals(mut num: u128) -> decimals {
+pub fn to_decimals(mut num: u128) -> decimalsU128 {
     let mut decimals = [0; MAX_DEC_PLACES];
     let mut ix = 0;
     loop {
@@ -163,7 +165,7 @@ pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
             wr_ix -= 1;
         }
 
-        end_len = rem_crux(dividend, &wdsor, end_len, wdsor_len);        
+        end_len = rem_crux(dividend, &wdsor, end_len, wdsor_len);
     }
 
     // when dividend is already rem this runs "in vain"
@@ -218,10 +220,10 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
             takeover = 0;
 
             let mut not_len = 0;
-            
+
             while ix < sor_len && ix < end_len {
-                let correction = end[ix] + sor[ix];                
-                
+                let correction = end[ix] + sor[ix];
+
                 let one = ones(correction, &mut takeover);
                 end[ix] = one;
 
@@ -233,13 +235,93 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
 
                 ix += 1;
             }
-            
+
             return if not_len == ix { 1 } else { ix - not_len };
         }
     }
 }
 
-pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
+pub fn pow(base: &[u8], pow: u8) -> decimalsMax {
+    let use_log_pow = 1;
+
+    if 1 == use_log_pow {
+        pow_log(base, pow)
+    } else {
+        pow_linear(base, pow)
+    }
+}
+
+pub fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
+    let mut mcand = [0; MAX_PLACES];
+    if pow == 0 {
+        mcand[0] = 1;
+        return (mcand, 1);
+    }
+
+    let base_len = base.len();
+    for ix in 0..base_len {
+        mcand[ix] = base[ix]
+    }
+
+    if pow == 1 {
+        return (mcand, base_len);
+    }
+
+    let mut mcand_len = base_len;
+
+    let mut sum_len = 0;
+    let mut sum = [0; MAX_PLACES];
+
+    let mut steps = [0; 7];
+    let mut wr_ix = 0;
+    let mut step = pow;
+    loop {
+        steps[wr_ix] = step;
+        step /= 2;
+
+        if step < 2 {
+            break;
+        }
+
+        wr_ix += 1;
+    }
+
+    let mut ixes = (0..=wr_ix).rev();
+    loop {
+        let re_ix = ixes.next().unwrap();
+
+        for off in 0..mcand_len {
+            sum_len = muladd(&mcand[0..mcand_len], mcand[off], &mut sum, off);
+        }
+        mcand_len = sum_len;
+
+        if steps[re_ix] & 1 == 1 {
+            copy_sum(&mut mcand, &mut sum, sum_len);
+            for off in 0..base_len {
+                sum_len = muladd(&mcand[0..mcand_len], base[off], &mut sum, off);
+            }
+            mcand_len = sum_len;
+        }
+
+        if re_ix == 0 {
+            mcand = sum;
+            break;
+        }
+
+        copy_sum(&mut mcand, &mut sum, sum_len);
+    }
+
+    (mcand, mcand_len)
+}
+
+fn copy_sum(mcand: &mut [u8], sum: &mut [u8], sum_len: usize) {
+    for ix in 0..sum_len {
+        mcand[ix] = sum[ix];
+        sum[ix] = 0;
+    }
+}
+
+pub fn pow_linear(base: &[u8], pow: u8) -> decimalsMax {
     let mut mcand = [0; MAX_PLACES];
     if pow == 0 {
         mcand[0] = 1;
@@ -262,7 +344,6 @@ pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
 
     let mut sum_len = 0;
     loop {
-
         for base_off in 0..base_len {
             sum_len = muladd(&mcand[0..mcand_len], base[base_off], &mut sum, base_off);
         }
@@ -273,11 +354,8 @@ pub fn pow(base: &[u8], pow: u8) -> ([u8; MAX_PLACES], usize) {
             mcand = sum;
             break;
         }
-        
-        for ix in 0..sum_len {
-            mcand[ix] = sum[ix];
-            sum[ix] = 0;
-        }
+
+        copy_sum(&mut mcand, &mut sum, mcand_len);
     }
 
     (mcand, mcand_len)
@@ -502,7 +580,7 @@ mod tests_of_units {
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(6, rem);
 
-             // assert_eq!(19, unsafe { LOOP_COUNTER });
+            // assert_eq!(19, unsafe { LOOP_COUNTER });
             // 65535 -2× 27000 ⇒ 2 +1
             // 11535 -4×  2700 ⇒ 4 +1
             // 735   -2×   270 ⇒ 2 +1
@@ -566,24 +644,24 @@ mod tests_of_units {
             assert_eq!(123, rem);
             // assert_eq!(0, unsafe { LOOP_COUNTER });
         }
-               
+
         #[test]
         fn advanced_test8() {
             let mut dividend = to_decimals(65535);
             let divisor = to_decimals(6553);
-            
+
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(5, rem);
             // assert_eq!(2, unsafe { LOOP_COUNTER });
             // 65535 -1× 65530 ⇒ 1 +1
             // rem 5           ⇒ Σ 2, no reentry
         }
-        
+
         #[test]
         fn advanced_test9() {
             let mut dividend = to_decimals(65000);
             let divisor = to_decimals(65);
-            
+
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
             assert_eq!(0, rem);
             // assert_eq!(2, unsafe { LOOP_COUNTER });
@@ -597,15 +675,15 @@ mod tests_of_units {
             let divisor = to_decimals(249);
 
             let rem = rem(dividend.as_slice_mut(), divisor.as_slice());
-            assert_eq!(216, rem);            
+            assert_eq!(216, rem);
         }
     }
 
     mod rem_crux {
 
-        use crate::{decimals, from_decimals, rem_crux, to_decimals, AsSlice, MAX_DEC_PLACES};
+        use crate::{decimalsU128, from_decimals, rem_crux, to_decimals, AsSlice, MAX_DEC_PLACES};
 
-        fn rem_crux_aux(dividend: &mut decimals, divisor: &decimals) -> u128 {
+        fn rem_crux_aux(dividend: &mut decimalsU128, divisor: &decimalsU128) -> u128 {
             let end = &mut dividend.0;
             let end_len = rem_crux(end, &divisor.0, dividend.1, divisor.1);
             from_decimals(&end[..end_len])
@@ -640,39 +718,39 @@ mod tests_of_units {
             let rem = rem_crux_aux(&mut dividend, &divisor);
             assert_eq!(0, rem);
         }
-        
+
         #[test]
         fn longer_divisor_test1() {
             let mut dividend = to_decimals(69);
             let divisor = to_decimals(244);
-            
+
             let end_len = rem_crux(&mut dividend.0, &divisor.0, 2, 3);
             assert_eq!(2, end_len);
             assert_eq!(&[5, 2], dividend.as_slice());
             // to get correct result, `69`, `rem_crux` have to be updated
         }
-        
+
         #[test]
         fn longer_divisor_test2() {
             let mut dividend = to_decimals(69);
             let divisor = to_decimals(270);
-            
+
             let rem = rem_crux_aux(&mut dividend, &divisor);
             assert_eq!(69, rem);
         }
-        
+
         #[test]
         fn longer_divisor_test3() {
             let mut dividend = to_decimals(69);
-            let divisor = to_decimals(269);            
-            
+            let divisor = to_decimals(269);
+
             let rem = rem_crux_aux(&mut dividend, &divisor);
             assert_eq!(0, rem);
         }
     }
 
     mod pow {
-        
+
         use crate::{pow, to_decimals, AsSlice};
 
         #[test]
@@ -689,7 +767,7 @@ mod tests_of_units {
             let proof = [5, 2, 2, 6, 3, 8, 4, 9, 2, 4];
             let proof_len = proof.len();
 
-            let pow = pow(&decimals.as_slice(), 2);
+            let pow = pow(decimals.as_slice(), 2);
 
             assert_eq!(proof_len, pow.1);
             assert_eq!(proof, pow.as_slice());
@@ -709,19 +787,58 @@ mod tests_of_units {
             assert_eq!(proof_len, pow.1);
             assert_eq!(proof, pow.as_slice());
         }
-        
+
         #[test]
         fn advanced_test3() {
             let decimals = to_decimals(1559);
-            let proof = [1,4,9,8,8,5,4,1,4,4,5,9,2,0,4,5,8,1,8];
-            
-            let pow = pow(&decimals.as_slice(), 255);
-            
+            let proof = [1, 4, 9, 8, 8, 5, 4, 1, 4, 4, 5, 9, 2, 0, 4, 5, 8, 1, 8];
+
+            let pow = pow(decimals.as_slice(), 255);
+
             assert_eq!(815, pow.1);
             let pow = pow.0;
             for ix in 0..proof.len() {
-                assert_eq!(proof[ix], pow[814-ix]);                
+                assert_eq!(proof[ix], pow[814 - ix]);
             }
+        }
+
+        #[test]
+        fn advanced_test4() {
+            let decimals = to_decimals(u16::MAX as u128);
+            let proof = [5, 7, 3, 5, 0, 0, 2, 9, 0, 2, 6, 4, 1, 8, 2];
+            let proof_len = proof.len();
+
+            let pow = pow(decimals.as_slice(), 3);
+
+            assert_eq!(proof_len, pow.1);
+            assert_eq!(proof, pow.as_slice());
+        }
+
+        #[test]
+        fn advanced_test5() {
+            let decimals = to_decimals(u16::MAX as u128);
+            let proof = [5, 2, 6, 0, 5, 2, 2, 7, 5, 9, 9, 1, 8, 1, 6, 5, 4, 4, 8, 1];
+            let proof_len = proof.len();
+
+            let pow = pow(decimals.as_slice(), 4);
+
+            assert_eq!(proof_len, pow.1);
+            assert_eq!(proof, pow.as_slice());
+        }
+
+        #[test]
+        fn advanced_test6() {
+            let decimals = to_decimals(u16::MAX as u128);
+            let proof = [
+                5, 2, 6, 0, 9, 8, 8, 2, 0, 9, 8, 4, 1, 8, 1, 2, 4, 0, 6, 3, 2, 9, 0, 9, 0, 2, 2, 9,
+                7,
+            ];
+            let proof_len = proof.len();
+
+            let pow = pow(decimals.as_slice(), 6);
+
+            assert_eq!(proof_len, pow.1);
+            assert_eq!(proof, pow.as_slice());
         }
 
         #[test]
