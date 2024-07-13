@@ -39,7 +39,6 @@ pub fn prime_ck(num: u16) -> bool {
     } else if num & 1 != 1 {
         return false;
     }
-    
 
     let sqrt = herons_sqrt(num);
 
@@ -257,9 +256,8 @@ pub fn pow(base: &[u8], pow: u8) -> decimalsMax {
 }
 
 fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
-
     let mut aux1 = [0; MAX_PLACES];
-    
+
     if pow == 0 {
         aux1[0] = 1;
         return (aux1, 1);
@@ -290,10 +288,10 @@ fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
 
         wr_ix += 1;
     }
-        
+
     let mut mcand = &mut aux1;
     let mut sum = &mut aux2;
-    
+
     let mut mcand_len = base_len;
     let mut sum_len = 0;
 
@@ -361,10 +359,10 @@ fn pow_linear(base: &[u8], pow: u8) -> decimalsMax {
 
     let mut mcand = &mut aux1;
     let mut sum = &mut aux2;
-    
+
     let mut mcand_len = base_len;
     let mut sum_len = 0;
-    
+
     let mut limit = (pow - 1) as usize;
     loop {
         for base_off in 0..base_len {
@@ -487,7 +485,7 @@ mod tests_of_units {
         fn basic_test() {
             assert!(prime_ck(3));
         }
-        
+
         #[test]
         fn two_test() {
             assert!(prime_ck(2));
