@@ -34,7 +34,12 @@ pub fn herons_sqrt(num: u16) -> u16 {
 pub fn prime_ck(num: u16) -> bool {
     if num < 2 {
         return false;
+    } else if num == 2 {
+        return true;
+    } else if num & 1 != 1 {
+        return false;
     }
+    
 
     let sqrt = herons_sqrt(num);
 
@@ -480,6 +485,11 @@ mod tests_of_units {
 
         #[test]
         fn basic_test() {
+            assert!(prime_ck(3));
+        }
+        
+        #[test]
+        fn two_test() {
             assert!(prime_ck(2));
         }
 
