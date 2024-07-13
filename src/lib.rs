@@ -242,39 +242,39 @@ fn rem_crux(end: &mut [u8], sor: &[u8], end_len: usize, sor_len: usize) -> usize
 }
 
 pub fn pow(base: &[u8], pow: u8) -> decimalsMax {
-    let use_log_pow = 1;
+    let pow_type = 1;
 
-    if 1 == use_log_pow {
-        pow_log(base, pow)
-    } else {
-        pow_linear(base, pow)
+    match pow_type {
+        1 => pow_log(base, pow),
+        2 => pow_linear(base, pow),
+        _ => panic!(),
     }
 }
 
-pub fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
-    let mut mcand = [0; MAX_PLACES];
+fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
+
+    let mut aux1 = [0; MAX_PLACES];
+    
     if pow == 0 {
-        mcand[0] = 1;
-        return (mcand, 1);
+        aux1[0] = 1;
+        return (aux1, 1);
     }
 
     let base_len = base.len();
     for ix in 0..base_len {
-        mcand[ix] = base[ix]
+        aux1[ix] = base[ix]
     }
 
     if pow == 1 {
-        return (mcand, base_len);
+        return (aux1, base_len);
     }
 
-    let mut mcand_len = base_len;
-
-    let mut sum_len = 0;
-    let mut sum = [0; MAX_PLACES];
+    let mut aux2 = [0; MAX_PLACES];
 
     let mut steps = [0; 7];
     let mut wr_ix = 0;
     let mut step = pow;
+
     loop {
         steps[wr_ix] = step;
         step /= 2;
@@ -285,67 +285,85 @@ pub fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
 
         wr_ix += 1;
     }
+        
+    let mut mcand = &mut aux1;
+    let mut sum = &mut aux2;
+    
+    let mut mcand_len = base_len;
+    let mut sum_len = 0;
 
     let mut ixes = (0..=wr_ix).rev();
+
     loop {
         let re_ix = ixes.next().unwrap();
 
         for off in 0..mcand_len {
-            sum_len = muladd(&mcand[0..mcand_len], mcand[off], &mut sum, off);
+            sum_len = muladd(&mcand[0..mcand_len], mcand[off], sum, off);
         }
-        mcand_len = sum_len;
 
         if steps[re_ix] & 1 == 1 {
-            copy_sum(&mut mcand, &mut sum, sum_len);
-            for off in 0..base_len {
-                sum_len = muladd(&mcand[0..mcand_len], base[off], &mut sum, off);
-            }
+            clear_swap(&mut mcand, mcand_len, &mut sum);
             mcand_len = sum_len;
+
+            for off in 0..base_len {
+                sum_len = muladd(&mcand[0..mcand_len], base[off], sum, off);
+            }
         }
 
         if re_ix == 0 {
-            mcand = sum;
-            break;
+            return (*sum, sum_len);
         }
 
-        copy_sum(&mut mcand, &mut sum, sum_len);
-    }
-
-    (mcand, mcand_len)
-}
-
-fn copy_sum(mcand: &mut [u8], sum: &mut [u8], sum_len: usize) {
-    for ix in 0..sum_len {
-        mcand[ix] = sum[ix];
-        sum[ix] = 0;
+        clear_swap(&mut mcand, mcand_len, &mut sum);
+        mcand_len = sum_len;
     }
 }
 
-pub fn pow_linear(base: &[u8], pow: u8) -> decimalsMax {
-    let mut mcand = [0; MAX_PLACES];
+fn clear_swap<'a>(
+    mcand: &mut &'a mut [u8; MAX_PLACES],
+    mcand_len: usize,
+    sum: *mut &'a mut [u8; MAX_PLACES],
+) {
+    for ix in 0..mcand_len {
+        mcand[ix] = 0;
+    }
+
+    let swap: *mut [u8; MAX_PLACES] = *mcand;
+
+    unsafe {
+        *mcand = *sum;
+        *sum = swap.as_mut().unwrap();
+    }
+}
+
+fn pow_linear(base: &[u8], pow: u8) -> decimalsMax {
+    let mut aux1 = [0; MAX_PLACES];
     if pow == 0 {
-        mcand[0] = 1;
-        return (mcand, 1);
+        aux1[0] = 1;
+        return (aux1, 1);
     }
 
     let base_len = base.len();
     for ix in 0..base_len {
-        mcand[ix] = base[ix]
+        aux1[ix] = base[ix]
     }
 
     if pow == 1 {
-        return (mcand, base_len);
+        return (aux1, base_len);
     }
 
-    let mut sum = [0; MAX_PLACES];
+    let mut aux2 = [0; MAX_PLACES];
 
-    let mut limit = (pow - 1) as usize;
+    let mut mcand = &mut aux1;
+    let mut sum = &mut aux2;
+    
     let mut mcand_len = base_len;
-
     let mut sum_len = 0;
+    
+    let mut limit = (pow - 1) as usize;
     loop {
         for base_off in 0..base_len {
-            sum_len = muladd(&mcand[0..mcand_len], base[base_off], &mut sum, base_off);
+            sum_len = muladd(&mcand[0..mcand_len], base[base_off], sum, base_off);
         }
 
         mcand_len = sum_len;
@@ -355,10 +373,10 @@ pub fn pow_linear(base: &[u8], pow: u8) -> decimalsMax {
             break;
         }
 
-        copy_sum(&mut mcand, &mut sum, mcand_len);
+        clear_swap(&mut mcand, mcand_len, &mut sum);
     }
 
-    (mcand, mcand_len)
+    (*mcand, mcand_len)
 }
 
 fn muladd(mcand: &[u8], mpler: u8, sum: &mut [u8], base_off: usize) -> usize {
