@@ -14,10 +14,10 @@ pub fn herons_sqrt(num: u16) -> u16 {
         return num;
     }
 
-    let mut cur = num / 2;
+    let mut cur = num >> 1;
 
     loop {
-        let nex = (cur + num / cur) / 2;
+        let nex = (cur + num / cur) >> 1;
 
         if nex >= cur {
             break;
@@ -280,7 +280,7 @@ fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
 
     loop {
         steps[wr_ix] = step;
-        step /= 2;
+        step >>= 1;
 
         // `pow = 1` and `pow = 0` solved above
         if step == 1 {
