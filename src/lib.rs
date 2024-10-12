@@ -282,7 +282,8 @@ fn pow_log(base: &[u8], pow: u8) -> decimalsMax {
         steps[wr_ix] = step;
         step /= 2;
 
-        if step < 2 {
+        // `pow = 1` and `pow = 0` solved above
+        if step == 1 {
             break;
         }
 
