@@ -9,6 +9,8 @@ type decimalsU128 = ([u8; MAX_DEC_PLACES], usize);
 type decimalsMax = ([u8; MAX_PLACES], usize);
 
 // xₙ₊₁ = ½(xₙ+S÷xₙ)
+// X₀ any positive initial estimation
+// lim(x→∞)xₙ = √S
 pub fn herons_sqrt(num: u16) -> u16 {
     if num == 1 || num == 0 {
         return num;
