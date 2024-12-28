@@ -118,7 +118,7 @@ pub fn from_decimals(decimals: &[u8]) -> u128 {
 }
 
 // in order to avoid excessive looping rem computation can be speed up
-// by simple substracting 10 multiples of divisor 1ˢᵗ
+// by simple substracting 10 multiplications of divisor first
 pub fn rem(dividend: &mut [u8], divisor: &[u8]) -> u128 {
     // widen divisor
     let mut wdsor = [0; MAX_PLACES];
