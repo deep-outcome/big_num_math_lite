@@ -2,4 +2,4 @@
 
 Library torso for embeded (no-alloc) computations on large numbers.
 
-See [Big Num Math](https://github.com/bravequickcleverfibreyarn/big_num_math) for reference.
+See [Big Num Math](https://github.com/deep-outcome/big_num_math) for reference.
